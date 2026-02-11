@@ -1,0 +1,47 @@
+# Coderoo
+.coderoo
+coderoo.config.json5
+Project
+
+# MCP Configuration (contains local paths)
+.mcp.json
+
+# VS Code
+*.code-workspace
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.pytest_cache/
+.mypy_cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs (local dev only - production logs are on Matt's machine)
+*.log
