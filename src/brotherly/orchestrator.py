@@ -66,10 +66,12 @@ def run(config: Config | None = None) -> None:
 
         # Run with real TTY via subprocess.call (no PIPE = inherited terminal)
         # Use bash pipefail so we get the script's exit code, not tee's
+        # cwd=data_dir so scripts don't depend on where brotherly was launched
         exit_code = subprocess.call(
             f'set -o pipefail; bash {shlex.quote(str(script_path))} 2>&1 | tee {shlex.quote(str(log_path))}',
             shell=True,
             executable="/bin/bash",
+            cwd=str(config.data_dir),
         )
 
         # Update task status

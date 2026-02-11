@@ -18,7 +18,7 @@ async def notify_chris(
 ) -> bool:
     """Send notifications to Chris on z2. Returns True if all succeeded."""
     ssh_target = f"{config.z2_user}@{config.z2_host}"
-    ssh_base = ["ssh", "-p", str(config.z2_port), "-o", "ConnectTimeout=10", ssh_target]
+    ssh_base = ["ssh", "-p", str(config.z2_port), "-o", "ConnectTimeout=10", "-o", "BatchMode=yes", ssh_target]
 
     success = task.exit_code == 0
     status_emoji = "+" if success else "FAIL"
@@ -41,7 +41,7 @@ async def notify_chris(
         await mkdir_proc.wait()
 
         scp_proc = await asyncio.create_subprocess_exec(
-            "scp", "-P", str(config.z2_port), "-o", "ConnectTimeout=10",
+            "scp", "-P", str(config.z2_port), "-o", "ConnectTimeout=10", "-o", "BatchMode=yes",
             str(log_path), scp_dest,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
