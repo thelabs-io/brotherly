@@ -7,7 +7,6 @@ from pathlib import Path
 import click
 
 from brotherly.config import Config
-from brotherly.models import QueuedTask
 from brotherly.queue import QueueManager
 
 
@@ -16,10 +15,9 @@ from brotherly.queue import QueueManager
 def main(ctx: click.Context) -> None:
     """Brotherly - Trust-based remote administration."""
     if ctx.invoked_subcommand is None:
-        from brotherly.app import BrotherlyApp
+        from brotherly.orchestrator import run
 
-        app = BrotherlyApp()
-        app.run()
+        run()
 
 
 @main.command()

@@ -1,10 +1,10 @@
-"""Task detail screen with description and actions."""
+"""Task detail screen with description and approval actions."""
 
 from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Center, Horizontal, Vertical, VerticalScroll
+from textual.containers import Center, Horizontal, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Markdown, Static
 
@@ -12,12 +12,13 @@ from brotherly.models import QueuedTask
 
 
 class TaskDetailScreen(Screen):
-    """Shows full task details with action buttons."""
+    """Shows full task details. Matt can approve, view source, skip, or go back."""
 
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
-        Binding("r", "run_task", "Run"),
+        Binding("a", "approve", "Approve"),
         Binding("v", "view_source", "View Source"),
+        Binding("s", "skip", "Skip"),
     ]
 
     def __init__(self, queued_task: QueuedTask) -> None:
@@ -41,17 +42,20 @@ class TaskDetailScreen(Screen):
 
             with Center(classes="button-row"):
                 with Horizontal(classes="buttons"):
-                    yield Button("Run", variant="success", id="btn-run")
+                    yield Button("Approve", variant="success", id="btn-approve")
                     yield Button("View Source", variant="primary", id="btn-source")
+                    yield Button("Skip", variant="warning", id="btn-skip")
                     yield Button("Back", variant="default", id="btn-back")
 
         yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-run":
-            self.action_run_task()
+        if event.button.id == "btn-approve":
+            self.action_approve()
         elif event.button.id == "btn-source":
             self.action_view_source()
+        elif event.button.id == "btn-skip":
+            self.action_skip()
         elif event.button.id == "btn-back":
             self.action_go_back()
 
@@ -63,7 +67,10 @@ class TaskDetailScreen(Screen):
 
         self.app.push_screen(SourceViewScreen(self.queued_task))
 
-    def action_run_task(self) -> None:
-        from brotherly.screens.execution import ExecutionScreen
+    def action_approve(self) -> None:
+        """Matt approves — TUI exits, orchestrator takes over for execution."""
+        self.app.approve_task(self.queued_task)
 
-        self.app.push_screen(ExecutionScreen(self.queued_task))
+    def action_skip(self) -> None:
+        """Skip this task, move to the next one."""
+        self.app.skip_task()

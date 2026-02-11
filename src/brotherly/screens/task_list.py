@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Label, ListItem, ListView, Static
+from textual.widgets import Footer, Header, ListItem, ListView, Static
 
 from brotherly.models import QueuedTask
 
@@ -20,7 +20,7 @@ class TaskListItem(ListItem):
         self.queued_task = queued_task
 
     def compose(self) -> ComposeResult:
-        sudo_badge = " [sudo]" if self.queued_task.requires_sudo else ""
+        sudo_badge = "  [bold on dark_orange3] SUDO [/bold on dark_orange3]" if self.queued_task.requires_sudo else ""
         yield Static(
             f"[bold]{self.queued_task.title}[/bold]{sudo_badge}",
             classes="task-title",
@@ -39,7 +39,7 @@ class TaskListScreen(Screen):
     """Main screen listing all pending tasks."""
 
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
+        Binding("q", "quit_app", "Quit"),
         Binding("r", "refresh", "Refresh"),
     ]
 
@@ -72,7 +72,7 @@ class TaskListScreen(Screen):
             )
             return
 
-        items = [TaskListItem(task) for task in tasks]
+        items = [TaskListItem(t) for t in tasks]
         container.mount(ListView(*items, id="task-list"))
 
     @on(ListView.Selected)
@@ -84,3 +84,6 @@ class TaskListScreen(Screen):
 
     def action_refresh(self) -> None:
         self.load_tasks()
+
+    def action_quit_app(self) -> None:
+        self.app.quit_app()
