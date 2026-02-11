@@ -46,4 +46,4 @@ Thumbs.db
 # Runtime data (queue, logs, config are per-machine)
 queue/
 logs/
-config.toml
+config.json5
