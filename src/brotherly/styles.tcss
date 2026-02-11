@@ -1,0 +1,165 @@
+/* ── Brotherly TUI Theme ── */
+
+Screen {
+    background: $surface;
+}
+
+Header {
+    background: $primary;
+    color: $text;
+}
+
+Footer {
+    background: $panel;
+}
+
+/* ── Task List ── */
+
+#task-container {
+    padding: 1 2;
+}
+
+#empty-wrapper {
+    height: 100%;
+    align: center middle;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 2 4;
+    color: $text-muted;
+}
+
+#task-list {
+    padding: 0;
+}
+
+TaskListItem {
+    padding: 1 2;
+    margin: 0 0 1 0;
+    background: $panel;
+    border: round $primary-background;
+    height: auto;
+}
+
+TaskListItem:hover {
+    background: $primary-background;
+    border: round $primary;
+}
+
+TaskListItem.-highlight {
+    background: $primary-background;
+    border: round $primary;
+}
+
+.task-title {
+    color: $text;
+    text-style: bold;
+    margin-bottom: 0;
+}
+
+.task-desc {
+    color: $text-muted;
+    margin: 0;
+}
+
+.task-meta {
+    color: $text-disabled;
+    margin-top: 0;
+}
+
+/* ── Task Detail ── */
+
+#detail-scroll {
+    padding: 1 3;
+}
+
+.detail-title {
+    text-style: bold;
+    color: $text;
+    margin-bottom: 1;
+    text-align: center;
+}
+
+.detail-meta {
+    text-align: center;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+#detail-description {
+    margin: 1 2;
+    padding: 1 2;
+    background: $panel;
+    border: round $primary-background;
+}
+
+.spacer {
+    height: 1;
+}
+
+.button-row {
+    margin: 1 0;
+    height: auto;
+}
+
+.buttons {
+    width: auto;
+    height: auto;
+}
+
+.buttons Button {
+    margin: 0 1;
+}
+
+/* ── Source View ── */
+
+.source-header {
+    padding: 1 2;
+    background: $panel;
+    color: $text;
+    border-bottom: solid $primary-background;
+}
+
+#source-scroll {
+    padding: 1 2;
+}
+
+#source-code {
+    padding: 1;
+}
+
+/* ── Execution ── */
+
+#exec-container {
+    padding: 1 2;
+}
+
+.exec-title {
+    padding: 1 2;
+    text-align: center;
+    text-style: bold;
+    color: $text;
+}
+
+.exec-status {
+    text-align: center;
+    padding: 1 2;
+    margin-bottom: 1;
+}
+
+#exec-output {
+    border: round $primary-background;
+    background: $surface;
+    padding: 1;
+    min-height: 10;
+}
+
+#exec-buttons {
+    margin-top: 1;
+    height: auto;
+}
+
+#exec-buttons Button {
+    margin: 0 1;
+}
