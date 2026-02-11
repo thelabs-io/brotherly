@@ -20,7 +20,7 @@ class TaskListItem(ListItem):
         self.queued_task = queued_task
 
     def compose(self) -> ComposeResult:
-        sudo_badge = "  [bold on dark_orange3] SUDO [/bold on dark_orange3]" if self.queued_task.requires_sudo else ""
+        sudo_badge = "  [bold reverse] SUDO [/bold reverse]" if self.queued_task.requires_sudo else ""
         yield Static(
             f"[bold]{self.queued_task.title}[/bold]{sudo_badge}",
             classes="task-title",
@@ -52,12 +52,12 @@ class TaskListScreen(Screen):
                 yield Button("Quit", variant="error", id="btn-quit")
         yield Footer()
 
-    def on_mount(self) -> None:
-        self.load_tasks()
+    async def on_mount(self) -> None:
+        await self.load_tasks()
 
-    def load_tasks(self) -> None:
+    async def load_tasks(self) -> None:
         container = self.query_one("#task-container")
-        container.remove_children()
+        await container.remove_children()
 
         tasks = self.app.queue.list_pending()
 
@@ -71,13 +71,13 @@ class TaskListScreen(Screen):
                             classes="empty-state",
                         ),
                     ),
-                    id="empty-wrapper",
+                    classes="empty-wrapper",
                 )
             )
             return
 
         items = [TaskListItem(t) for t in tasks]
-        container.mount(ListView(*items, id="task-list"))
+        container.mount(ListView(*items, classes="task-list"))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-refresh":
@@ -92,8 +92,8 @@ class TaskListScreen(Screen):
 
             self.app.push_screen(TaskDetailScreen(event.item.queued_task))
 
-    def action_refresh(self) -> None:
-        self.load_tasks()
+    async def action_refresh(self) -> None:
+        await self.load_tasks()
 
     def action_quit_app(self) -> None:
         self.app.quit_app()

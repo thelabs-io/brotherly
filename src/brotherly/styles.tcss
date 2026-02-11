@@ -1,17 +1,5 @@
-/* ── Brotherly TUI Theme ── */
-
-Screen {
-    background: $surface;
-}
-
-Header {
-    background: $primary;
-    color: $text;
-}
-
-Footer {
-    background: $panel;
-}
+/* ── Brotherly TUI ── */
+/* Layout only — colors come from the active theme */
 
 /* ── Task List ── */
 
@@ -27,7 +15,6 @@ Footer {
 .empty-state {
     text-align: center;
     padding: 2 4;
-    color: $text-muted;
 }
 
 #task-list {
@@ -37,34 +24,19 @@ Footer {
 TaskListItem {
     padding: 1 2;
     margin: 0 0 1 0;
-    background: $panel;
-    border: round $primary-background;
     height: auto;
 }
 
-TaskListItem:hover {
-    background: $primary-background;
-    border: round $primary;
-}
-
-TaskListItem.-highlight {
-    background: $primary-background;
-    border: round $primary;
-}
-
 .task-title {
-    color: $text;
     text-style: bold;
     margin-bottom: 0;
 }
 
 .task-desc {
-    color: $text-muted;
     margin: 0;
 }
 
 .task-meta {
-    color: $text-disabled;
     margin-top: 0;
 }
 
@@ -76,22 +48,18 @@ TaskListItem.-highlight {
 
 .detail-title {
     text-style: bold;
-    color: $text;
     margin-bottom: 1;
     text-align: center;
 }
 
 .detail-meta {
     text-align: center;
-    color: $text-muted;
     margin-bottom: 1;
 }
 
 #detail-description {
     margin: 1 2;
     padding: 1 2;
-    background: $panel;
-    border: round $primary-background;
 }
 
 .spacer {
@@ -116,9 +84,6 @@ TaskListItem.-highlight {
 
 .source-header {
     padding: 1 2;
-    background: $panel;
-    color: $text;
-    border-bottom: solid $primary-background;
 }
 
 #source-scroll {
@@ -141,6 +106,16 @@ TaskListItem.-highlight {
     padding: 1 2;
 }
 
+.summary-banner-success {
+    text-style: bold reverse;
+    color: $success;
+}
+
+.summary-banner-fail {
+    text-style: bold reverse;
+    color: $error;
+}
+
 .summary-title {
     text-align: center;
     margin: 1 0;
@@ -148,7 +123,6 @@ TaskListItem.-highlight {
 
 .summary-meta {
     text-align: center;
-    color: $text-muted;
 }
 
 .summary-label {
@@ -158,11 +132,8 @@ TaskListItem.-highlight {
 .log-tail {
     margin: 0 2;
     padding: 1 2;
-    background: $panel;
-    border: round $primary-background;
 }
 
 .summary-notify {
     text-align: center;
-    color: $text-muted;
 }

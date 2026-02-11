@@ -34,13 +34,13 @@ class SummaryScreen(Screen):
 
             if success:
                 yield Static(
-                    "[bold green on dark_green]  ✓ COMPLETED SUCCESSFULLY  [/bold green on dark_green]",
-                    classes="summary-banner",
+                    "  ✓ COMPLETED SUCCESSFULLY  ",
+                    classes="summary-banner summary-banner-success",
                 )
             else:
                 yield Static(
-                    f"[bold white on red]  ✗ FAILED (exit code {self.completed_task.exit_code})  [/bold white on red]",
-                    classes="summary-banner",
+                    f"  ✗ FAILED (exit code {self.completed_task.exit_code})  ",
+                    classes="summary-banner summary-banner-fail",
                 )
 
             yield Static(

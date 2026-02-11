@@ -33,7 +33,7 @@ class TaskDetailScreen(Screen):
             # Metadata badges
             badges = f"[dim]Queued by [bold]{self.queued_task.queued_by}[/bold] \u2022 {self.queued_task.age}[/dim]"
             if self.queued_task.requires_sudo:
-                badges += "  [bold on dark_orange3] SUDO [/bold on dark_orange3]"
+                badges += "  [bold reverse] SUDO [/bold reverse]"
             yield Static(badges, classes="detail-meta")
 
             yield Static("", classes="spacer")
