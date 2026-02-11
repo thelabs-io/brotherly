@@ -1,3 +1,3 @@
-"""Brotherly - Trust-based remote administration with a beautiful TUI."""
+"""Brotherly - Transparent remote administration for brothers."""
 
 __version__ = "0.1.0"

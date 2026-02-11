@@ -2,7 +2,7 @@
 
 ## Overview
 
-A trust-based remote administration tool for brothers. Chris queues shell scripts on Matt's Mac Mini via SSH, and Matt reviews and approves them through a beautiful Textual TUI. All operations are logged and Chris gets notified of results via SMS and GNOME desktop notifications.
+Transparent remote administration for brothers. Chris queues shell scripts on Matt's Mac Mini via SSH, and Matt reviews and approves them through a Textual TUI before anything runs. No sudo access, no blind trust — Matt sees exactly what will execute and decides. All operations are logged and Chris gets notified of results via SMS and GNOME desktop notifications.
 
 ## Architecture
 

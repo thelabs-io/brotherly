@@ -1,7 +1,7 @@
 [project]
 name = "brotherly"
 version = "0.1.0"
-description = "Trust-based remote administration tool with a beautiful TUI approval flow"
+description = "Transparent remote administration - review and approve scripts before they run"
 requires-python = ">=3.11"
 authors = [{ name = "Chris Franson", email = "chris@iolabs.dev" }]
 dependencies = [

@@ -7,9 +7,9 @@ from pathlib import Path
 from rich.syntax import Syntax
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Center, Horizontal, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Static
+from textual.widgets import Button, Footer, Header, Static
 
 
 class LogViewScreen(Screen):
@@ -31,6 +31,9 @@ class LogViewScreen(Screen):
             classes="source-header",
         )
         yield VerticalScroll(id="source-scroll")
+        with Center(classes="button-row"):
+            with Horizontal(classes="buttons"):
+                yield Button("Back", variant="default", id="btn-back")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -48,6 +51,10 @@ class LogViewScreen(Screen):
         )
         container = self.query_one("#source-scroll")
         container.mount(Static(syntax, id="source-code"))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-back":
+            self.action_go_back()
 
     def action_go_back(self) -> None:
         self.app.pop_screen()

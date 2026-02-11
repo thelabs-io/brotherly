@@ -1,6 +1,6 @@
 # Brotherly
 
-A trust-based remote administration tool for brothers. Queue shell scripts for review and approval through a beautiful terminal UI.
+Transparent remote administration for brothers. Queue shell scripts for review and approval through a beautiful terminal UI — no sudo access needed, no trust required.
 
 ## How It Works
 

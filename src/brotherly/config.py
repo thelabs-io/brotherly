@@ -2,14 +2,39 @@
 
 from __future__ import annotations
 
-import tomllib
+import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
+
+CONFIG_PATH = Path.home() / ".config" / "brotherly" / "config.json5"
+DEFAULT_DATA_DIR = Path.home() / ".brotherly"
+
+
+def _parse_json5(text: str) -> dict:
+    """Parse JSON5 by stripping // comments and trailing commas."""
+    result = []
+    i = 0
+    in_string = False
+    while i < len(text):
+        if text[i] == '"' and (i == 0 or text[i - 1] != "\\"):
+            in_string = not in_string
+            result.append(text[i])
+        elif not in_string and text[i : i + 2] == "//":
+            while i < len(text) and text[i] != "\n":
+                i += 1
+            continue
+        else:
+            result.append(text[i])
+        i += 1
+    cleaned = "".join(result)
+    cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+    return json.loads(cleaned)
 
 
 @dataclass
 class Config:
-    data_dir: Path = field(default_factory=lambda: Path.cwd())
+    data_dir: Path = field(default_factory=lambda: DEFAULT_DATA_DIR)
     z2_host: str = "zara2stra.duckdns.org"
     z2_port: int = 22440
     z2_user: str = "chris"
@@ -31,15 +56,14 @@ class Config:
     @classmethod
     def load(cls, config_path: Path | None = None) -> Config:
         if config_path is None:
-            config_path = Path.cwd() / "config.toml"
+            config_path = CONFIG_PATH
 
         if not config_path.exists():
             cfg = cls()
             cfg.ensure_dirs()
             return cfg
 
-        with open(config_path, "rb") as f:
-            data = tomllib.load(f)
+        data = _parse_json5(config_path.read_text())
 
         kwargs = {}
         if "data_dir" in data:

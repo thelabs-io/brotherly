@@ -6,7 +6,7 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Center, VerticalScroll
+from textual.containers import Center, Horizontal, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Static
 
@@ -72,7 +72,9 @@ class SummaryScreen(Screen):
 
             yield Static("", classes="spacer")
             with Center(classes="button-row"):
-                yield Button("Continue", variant="primary", id="btn-continue")
+                with Horizontal(classes="buttons"):
+                    yield Button("View Log", variant="default", id="btn-log")
+                    yield Button("Continue", variant="primary", id="btn-continue")
 
         yield Footer()
 
@@ -88,18 +90,14 @@ class SummaryScreen(Screen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-continue":
             self.action_dismiss()
+        elif event.button.id == "btn-log":
+            self.action_view_log()
 
     def action_dismiss(self) -> None:
         self.app.exit()
 
     def action_view_log(self) -> None:
         """Show full log in a scrollable view."""
-        from brotherly.screens.source_view import SourceViewScreen
-
-        # Reuse source viewer for log display
-        from brotherly.models import QueuedTask as _
-
-        # Create a lightweight wrapper to reuse SourceViewScreen
         from brotherly.screens.log_view import LogViewScreen
 
         self.app.push_screen(LogViewScreen(self.log_path))

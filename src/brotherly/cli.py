@@ -13,7 +13,7 @@ from brotherly.queue import QueueManager
 @click.group(invoke_without_command=True)
 @click.pass_context
 def main(ctx: click.Context) -> None:
-    """Brotherly - Trust-based remote administration."""
+    """Brotherly - Transparent remote administration for brothers."""
     if ctx.invoked_subcommand is None:
         from brotherly.orchestrator import run
 

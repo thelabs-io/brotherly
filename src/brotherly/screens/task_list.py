@@ -5,9 +5,9 @@ from __future__ import annotations
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Center, Vertical, VerticalScroll
+from textual.containers import Center, Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Footer, Header, ListItem, ListView, Static
+from textual.widgets import Button, Footer, Header, ListItem, ListView, Static
 
 from brotherly.models import QueuedTask
 
@@ -46,6 +46,10 @@ class TaskListScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
         yield VerticalScroll(id="task-container")
+        with Center(classes="button-row"):
+            with Horizontal(classes="buttons"):
+                yield Button("Refresh", variant="primary", id="btn-refresh")
+                yield Button("Quit", variant="error", id="btn-quit")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -74,6 +78,12 @@ class TaskListScreen(Screen):
 
         items = [TaskListItem(t) for t in tasks]
         container.mount(ListView(*items, id="task-list"))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-refresh":
+            self.action_refresh()
+        elif event.button.id == "btn-quit":
+            self.action_quit_app()
 
     @on(ListView.Selected)
     def on_task_selected(self, event: ListView.Selected) -> None:
