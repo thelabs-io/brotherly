@@ -25,5 +25,8 @@ The system has two sides:
 - [Architecture Overview](architecture.md) - System design, components, data flow
 - [Technical Decisions](decisions.md) - Key architectural choices
 
+### Usage
+- [Scripts & Requests](scripts-and-requests.md) - Writing scripts with headers and sending requests
+
 ### Development
 - [Development Guide](development.md) - Setup and development workflow
