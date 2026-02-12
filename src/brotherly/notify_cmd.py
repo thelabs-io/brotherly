@@ -8,7 +8,7 @@ from pathlib import Path
 
 from brotherly.config import Config
 from brotherly.notify import notify_chris
-from brotherly.queue import QueueManager
+from brotherly.request import RequestManager
 
 
 def main() -> None:
@@ -20,8 +20,8 @@ def main() -> None:
     log_path = Path(sys.argv[2])
 
     config = Config.load()
-    queue = QueueManager(config)
-    task = queue.get_task(task_id)
+    requests = RequestManager(config)
+    task = requests.get_task(task_id)
 
     if task is None:
         print(f"Task not found: {task_id}", file=sys.stderr)

@@ -14,25 +14,25 @@ from datetime import datetime
 
 from brotherly.config import Config
 from brotherly.models import TaskStatus
-from brotherly.queue import QueueManager
+from brotherly.request import RequestManager
 
 
 def run(config: Config | None = None) -> None:
     """Main entry point — the loop Matt interacts with."""
     if config is None:
         config = Config.load()
-    queue = QueueManager(config)
+    requests = RequestManager(config)
 
     while True:
-        pending = queue.list_pending()
+        pending = requests.list_pending()
         if not pending:
-            _print_no_tasks()
+            _print_no_requests()
             break
 
-        # Phase 1: TUI review — Matt picks a task and approves/skips/quits
+        # Phase 1: TUI review — Matt picks a request and runs/skips/quits
         from brotherly.app import ReviewApp
 
-        app = ReviewApp(config=config, queue_manager=queue)
+        app = ReviewApp(config=config, request_manager=requests)
         app.run()
         decision = app.result
 
@@ -42,21 +42,21 @@ def run(config: Config | None = None) -> None:
         if decision.get("action") == "skip":
             continue
 
-        if decision.get("action") != "approved":
+        if decision.get("action") != "run":
             break
 
         task_id = decision["task_id"]
-        task = queue.get_task(task_id)
+        task = requests.get_task(task_id)
         if task is None:
             continue
 
         # Phase 2: Execute script in the real terminal
-        script_path = queue.get_script_path(task)
-        log_path = queue.log_path(task)
+        script_path = requests.get_script_path(task)
+        log_path = requests.log_path(task)
         config.ensure_dirs()
 
         task.status = TaskStatus.RUNNING
-        queue.update_task(task)
+        requests.update_task(task)
 
         print(f"\n\033[1;34m{'═' * 60}\033[0m")
         print(f"\033[1m  Executing: {task.title}\033[0m")
@@ -78,7 +78,7 @@ def run(config: Config | None = None) -> None:
         task.exit_code = exit_code
         task.completed_at = datetime.now().isoformat()
         task.status = TaskStatus.COMPLETED if exit_code == 0 else TaskStatus.FAILED
-        queue.update_task(task)
+        requests.update_task(task)
 
         success = exit_code == 0
         if success:
@@ -100,9 +100,9 @@ def run(config: Config | None = None) -> None:
         _notify_background(task_id, str(log_path))
 
 
-def _print_no_tasks() -> None:
-    print("\033[2m  No tasks queued.\033[0m")
-    print("\033[2m  When Chris queues something, run brotherly again.\033[0m")
+def _print_no_requests() -> None:
+    print("\033[2m  No pending requests.\033[0m")
+    print("\033[2m  When Chris sends a request, run brotherly again.\033[0m")
 
 
 def _notify_background(task_id: str, log_path: str) -> None:

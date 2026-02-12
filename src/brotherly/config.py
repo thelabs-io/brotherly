@@ -40,17 +40,24 @@ class Config:
     z2_user: str = "chris"
     phone_number: str = "+19203858522"
     z2_log_dir: str = "~/Bros/brotherly/logs"
+    z2_ssh_key: str = "~/.ssh/id_ed25519_brotherly"
+    default_host: str = ""
+    remote_data_dir: str = "~/.brotherly"
 
     @property
-    def queue_dir(self) -> Path:
-        return self.data_dir / "queue"
+    def requests_dir(self) -> Path:
+        return self.data_dir / "requests"
 
     @property
     def logs_dir(self) -> Path:
         return self.data_dir / "logs"
 
     def ensure_dirs(self) -> None:
-        self.queue_dir.mkdir(parents=True, exist_ok=True)
+        # Migrate queue/ → requests/ if needed
+        old_queue = self.data_dir / "queue"
+        if old_queue.is_dir() and not self.requests_dir.exists():
+            old_queue.rename(self.requests_dir)
+        self.requests_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 
     @classmethod
@@ -78,8 +85,14 @@ class Config:
                 kwargs["z2_user"] = z2["user"]
             if "log_dir" in z2:
                 kwargs["z2_log_dir"] = z2["log_dir"]
+            if "ssh_key" in z2:
+                kwargs["z2_ssh_key"] = z2["ssh_key"]
         if "phone_number" in data:
             kwargs["phone_number"] = data["phone_number"]
+        if "default_host" in data:
+            kwargs["default_host"] = data["default_host"]
+        if "remote_data_dir" in data:
+            kwargs["remote_data_dir"] = data["remote_data_dir"]
 
         cfg = cls(**kwargs)
         cfg.ensure_dirs()

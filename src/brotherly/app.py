@@ -13,24 +13,24 @@ from textual.app import App
 
 from brotherly.config import Config
 from brotherly.models import QueuedTask
-from brotherly.queue import QueueManager
+from brotherly.request import RequestManager
 
 
 class ReviewApp(App):
-    """TUI for reviewing and approving queued tasks."""
+    """TUI for reviewing pending requests."""
 
     TITLE = "Brotherly"
-    SUB_TITLE = "Review queued tasks"
+    SUB_TITLE = "Pending requests"
     CSS_PATH = Path(__file__).parent / "styles.tcss"
 
     def __init__(
         self,
         config: Config | None = None,
-        queue_manager: QueueManager | None = None,
+        request_manager: RequestManager | None = None,
     ) -> None:
         super().__init__()
         self.config = config or Config.load()
-        self.queue = queue_manager or QueueManager(self.config)
+        self.requests = request_manager or RequestManager(self.config)
         self.result: dict | None = None
 
     def on_mount(self) -> None:
@@ -38,9 +38,9 @@ class ReviewApp(App):
 
         self.push_screen(TaskListScreen())
 
-    def approve_task(self, task: QueuedTask) -> None:
-        """Called by detail screen when Matt approves a task."""
-        self.result = {"action": "approved", "task_id": task.id, "title": task.title}
+    def run_task(self, task: QueuedTask) -> None:
+        """Called by detail screen when Matt chooses to run a request."""
+        self.result = {"action": "run", "task_id": task.id, "title": task.title}
         self.exit()
 
     def skip_task(self) -> None:

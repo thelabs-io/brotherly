@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import click
 
 from brotherly.config import Config
-from brotherly.queue import QueueManager
+from brotherly.models import QueuedTask
+from brotherly.request import RequestManager
+from brotherly.script_parser import parse_script_header
 
 
 @click.group(invoke_without_command=True)
@@ -22,30 +25,94 @@ def main(ctx: click.Context) -> None:
 
 @main.command()
 @click.argument("script", type=click.Path(exists=True, path_type=Path))
-@click.option("--title", "-t", required=True, help="Short title for the task")
-@click.option("--description", "-d", required=True, help="What this script does")
+@click.option("--host", "-h", default=None, help="Remote host (SSH config alias)")
 @click.option("--sudo", is_flag=True, help="Script requires sudo")
-def queue(script: Path, title: str, description: str, sudo: bool) -> None:
-    """Queue a script for review and execution."""
+def request(script: Path, host: str | None, sudo: bool) -> None:
+    """Send a script request for review and execution."""
     config = Config.load()
-    mgr = QueueManager(config)
-    task = mgr.add_task(script, title, description, requires_sudo=sudo)
+    header = parse_script_header(script)
 
-    click.secho(f"  Queued: {task.title}", fg="green")
-    click.echo(f"  ID: {task.id}")
-    click.echo(f"  Script: {task.script_filename}")
+    if not header.title or header.title == script.stem:
+        click.secho("  Warning: no title found in script header, using filename.", fg="yellow")
+
+    target = host or config.default_host
+
+    if target:
+        _remote_request(config, script, header, target, sudo)
+    else:
+        mgr = RequestManager(config)
+        task = mgr.add_task(script, requires_sudo=sudo)
+        click.secho(f"  Requested: {task.title}", fg="green")
+        click.echo(f"  ID: {task.id}")
+
+
+def _remote_request(config, script, header, target, sudo):
+    """Send a request to a remote host via SSH."""
+    from datetime import datetime
+
+    task_id = QueuedTask.generate_id(header.title)
+    script_filename = f"{task_id}.sh"
+    remote_dir = config.remote_data_dir + "/requests"
+
+    # Ensure remote directory exists
+    ssh_mkdir = subprocess.run(
+        ["ssh", target, f"mkdir -p {remote_dir}"],
+        capture_output=True, text=True, timeout=15,
+    )
+    if ssh_mkdir.returncode != 0:
+        click.secho(f"  Failed to create remote dir: {ssh_mkdir.stderr.strip()}", fg="red")
+        return
+
+    # SCP the script
+    remote_path = f"{target}:{remote_dir}/{script_filename}"
+    scp = subprocess.run(
+        ["scp", str(script), remote_path],
+        capture_output=True, text=True, timeout=30,
+    )
+    if scp.returncode != 0:
+        click.secho(f"  Failed to copy script: {scp.stderr.strip()}", fg="red")
+        return
+
+    # chmod on remote
+    subprocess.run(
+        ["ssh", target, f"chmod 755 {remote_dir}/{script_filename}"],
+        capture_output=True, timeout=10,
+    )
+
+    # Create and send metadata JSON
+    task = QueuedTask(
+        id=task_id,
+        script_filename=script_filename,
+        title=header.title,
+        description=header.description,
+        queued_at=datetime.now().isoformat(),
+        requires_sudo=sudo,
+    )
+    meta_json = task.to_json()
+
+    ssh_meta = subprocess.run(
+        ["ssh", target, f"cat > {remote_dir}/{task_id}.json"],
+        input=meta_json, capture_output=True, text=True, timeout=15,
+    )
+    if ssh_meta.returncode != 0:
+        click.secho(f"  Failed to write metadata: {ssh_meta.stderr.strip()}", fg="red")
+        return
+
+    click.secho(f"  Requested: {header.title}", fg="green")
+    click.echo(f"  Host: {target}")
+    click.echo(f"  ID: {task_id}")
 
 
 @main.command(name="list")
-@click.option("--all", "show_all", is_flag=True, help="Show all tasks, not just pending")
+@click.option("--all", "show_all", is_flag=True, help="Show all requests, not just pending")
 def list_tasks(show_all: bool) -> None:
-    """List queued tasks."""
+    """List requests."""
     config = Config.load()
-    mgr = QueueManager(config)
+    mgr = RequestManager(config)
     tasks = mgr.list_all() if show_all else mgr.list_pending()
 
     if not tasks:
-        click.echo("No tasks queued.")
+        click.echo("No pending requests.")
         return
 
     for task in tasks:
@@ -58,4 +125,5 @@ def list_tasks(show_all: bool) -> None:
         color = status_colors.get(task.status.value, "white")
         click.secho(f"  [{task.status.value:>9}] ", fg=color, nl=False)
         click.echo(f"{task.title} ({task.age})")
-        click.echo(f"             {task.description[:60]}")
+        if task.description:
+            click.echo(f"             {task.description.splitlines()[0][:60]}")

@@ -16,7 +16,7 @@ class TaskDetailScreen(Screen):
 
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
-        Binding("a", "approve", "Approve"),
+        Binding("r", "run", "Run"),
         Binding("v", "view_source", "View Source"),
         Binding("s", "skip", "Skip"),
     ]
@@ -42,7 +42,7 @@ class TaskDetailScreen(Screen):
 
             with Center(classes="button-row"):
                 with Horizontal(classes="buttons"):
-                    yield Button("Approve", variant="success", id="btn-approve")
+                    yield Button("Run", variant="success", id="btn-run")
                     yield Button("View Source", variant="primary", id="btn-source")
                     yield Button("Skip", variant="warning", id="btn-skip")
                     yield Button("Back", variant="default", id="btn-back")
@@ -50,8 +50,8 @@ class TaskDetailScreen(Screen):
         yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-approve":
-            self.action_approve()
+        if event.button.id == "btn-run":
+            self.action_run()
         elif event.button.id == "btn-source":
             self.action_view_source()
         elif event.button.id == "btn-skip":
@@ -67,9 +67,9 @@ class TaskDetailScreen(Screen):
 
         self.app.push_screen(SourceViewScreen(self.queued_task))
 
-    def action_approve(self) -> None:
-        """Matt approves — TUI exits, orchestrator takes over for execution."""
-        self.app.approve_task(self.queued_task)
+    def action_run(self) -> None:
+        """Matt runs — TUI exits, orchestrator takes over for execution."""
+        self.app.run_task(self.queued_task)
 
     def action_skip(self) -> None:
         """Skip this task, move to the next one."""

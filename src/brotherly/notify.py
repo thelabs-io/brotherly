@@ -1,9 +1,9 @@
-"""Notification system - SSH to z2 for SMS and GNOME notifications."""
+"""Notification system - SSH to z2 via restricted service key."""
 
 from __future__ import annotations
 
 import asyncio
-import shlex
+import base64
 from pathlib import Path
 
 from brotherly.config import Config
@@ -16,92 +16,53 @@ async def notify_chris(
     config: Config,
     on_status: callable | None = None,
 ) -> bool:
-    """Send notifications to Chris on z2. Returns True if all succeeded."""
-    ssh_target = f"{config.z2_user}@{config.z2_host}"
-    ssh_base = ["ssh", "-p", str(config.z2_port), "-o", "ConnectTimeout=10", "-o", "BatchMode=yes", ssh_target]
+    """Send notifications to Chris on z2 via restricted service key.
 
-    success = task.exit_code == 0
-    status_emoji = "+" if success else "FAIL"
-    status_word = "completed successfully" if success else f"FAILED (exit {task.exit_code})"
-    sms_msg = f"Brotherly [{status_emoji}]: {task.title} {status_word}"
-
-    all_ok = True
-
-    # Step 1: SCP log file to z2
+    Single SSH call: metadata as command string, log piped via stdin.
+    The server-side forced command handler does the rest.
+    """
     if on_status:
-        on_status("Copying log to z2...")
-    try:
-        scp_dest = f"{ssh_target}:{config.z2_log_dir}/{log_path.name}"
-        # Ensure remote log directory exists
-        mkdir_proc = await asyncio.create_subprocess_exec(
-            *ssh_base, f"mkdir -p {shlex.quote(config.z2_log_dir)}",
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        await mkdir_proc.wait()
+        on_status("Sending notifications to z2...")
 
-        scp_proc = await asyncio.create_subprocess_exec(
-            "scp", "-P", str(config.z2_port), "-o", "ConnectTimeout=10", "-o", "BatchMode=yes",
-            str(log_path), scp_dest,
-            stdout=asyncio.subprocess.DEVNULL,
+    # Base64-encode the title to safely pass spaces/special chars
+    title_b64 = base64.b64encode(task.title.encode()).decode()
+    exit_code = task.exit_code if task.exit_code is not None else 1
+
+    # The "command" we send — the forced command handler reads SSH_ORIGINAL_COMMAND
+    remote_cmd = f"notify {title_b64} status {exit_code}"
+
+    ssh_key = str(Path(config.z2_ssh_key).expanduser())
+
+    ssh_cmd = [
+        "ssh",
+        "-i", ssh_key,
+        "-p", str(config.z2_port),
+        "-o", "ConnectTimeout=10",
+        "-o", "BatchMode=yes",
+        f"{config.z2_user}@{config.z2_host}",
+        remote_cmd,
+    ]
+
+    try:
+        # Pipe log file contents via stdin
+        stdin_data = b""
+        if log_path.exists():
+            stdin_data = log_path.read_bytes()
+
+        proc = await asyncio.create_subprocess_exec(
+            *ssh_cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, stderr = await scp_proc.communicate()
-        if scp_proc.returncode != 0:
-            all_ok = False
+        stdout, stderr = await proc.communicate(input=stdin_data)
+        ok = proc.returncode == 0
+
+        if on_status:
+            on_status("Notifications sent!" if ok else "Notifications failed")
+        return ok
+
     except Exception:
-        all_ok = False
-
-    # Step 2: Send SMS
-    if on_status:
-        on_status("Sending SMS...")
-    try:
-        sms_cmd = f"send-sms {shlex.quote(config.phone_number)} {shlex.quote(sms_msg)}"
-        sms_proc = await asyncio.create_subprocess_exec(
-            *ssh_base, sms_cmd,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await sms_proc.communicate()
-        if sms_proc.returncode != 0:
-            all_ok = False
-    except Exception:
-        all_ok = False
-
-    # Step 3: GNOME notification with click-to-open-log
-    if on_status:
-        on_status("Sending desktop notification...")
-    try:
-        urgency = "normal" if success else "critical"
-        icon = "dialog-information" if success else "dialog-error"
-        remote_log = f"{config.z2_log_dir}/{log_path.name}"
-
-        # Use notify-send with --action; backgrounded so it doesn't block SSH
-        notify_script = (
-            f'DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus '
-            f'nohup bash -c \''
-            f'ACTION=$(notify-send '
-            f'--urgency={urgency} '
-            f'--app-name=Brotherly '
-            f'--icon={icon} '
-            f'"Brotherly: {task.title}" '
-            f'{shlex.quote(status_word)} '
-            f'--action=view=View\\ Log '
-            f'--wait 2>/dev/null); '
-            f'if [ "$ACTION" = "view" ]; then '
-            f'xdg-open {shlex.quote(remote_log)}; '
-            f'fi\' &>/dev/null &'
-        )
-        notify_proc = await asyncio.create_subprocess_exec(
-            *ssh_base, notify_script,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        await notify_proc.wait()
-    except Exception:
-        all_ok = False
-
-    if on_status:
-        on_status("Notifications sent!" if all_ok else "Some notifications failed")
-
-    return all_ok
+        if on_status:
+            on_status("Notifications failed")
+        return False

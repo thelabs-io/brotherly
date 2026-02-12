@@ -59,15 +59,15 @@ class TaskListScreen(Screen):
         container = self.query_one("#task-container")
         await container.remove_children()
 
-        tasks = self.app.queue.list_pending()
+        tasks = self.app.requests.list_pending()
 
         if not tasks:
             container.mount(
                 Vertical(
                     Center(
                         Static(
-                            "[dim]No tasks queued.[/dim]\n\n"
-                            "[dim italic]When Chris queues something, it'll show up here.[/dim italic]",
+                            "[dim]No pending requests.[/dim]\n\n"
+                            "[dim italic]When Chris sends a request, it'll show up here.[/dim italic]",
                             classes="empty-state",
                         ),
                     ),

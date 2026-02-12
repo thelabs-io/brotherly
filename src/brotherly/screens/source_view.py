@@ -37,7 +37,15 @@ class SourceViewScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        source = self.app.queue.get_script_content(self.queued_task)
+        from brotherly.script_parser import parse_script_header
+
+        script_path = self.app.requests.get_script_path(self.queued_task)
+        header = parse_script_header(script_path)
+        full_content = script_path.read_text()
+        lines = full_content.splitlines()
+        code_lines = lines[header.body_start_line:]
+        source = "\n".join(code_lines)
+
         syntax = Syntax(
             source,
             "bash",

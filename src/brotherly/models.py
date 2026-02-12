@@ -1,4 +1,4 @@
-"""Data models for queued tasks."""
+"""Data models for brotherly requests."""
 
 from __future__ import annotations
 
