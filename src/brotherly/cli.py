@@ -54,9 +54,9 @@ def _remote_request(config, script, header, target, sudo):
     script_filename = f"{task_id}.sh"
     remote_dir = config.remote_data_dir + "/requests"
 
-    # Ensure remote directory exists
+    # Ensure remote directory exists (group-writable for multi-user access)
     ssh_mkdir = subprocess.run(
-        ["ssh", target, f"mkdir -p {remote_dir}"],
+        ["ssh", target, f"mkdir -p {remote_dir} && chmod g+w {remote_dir}"],
         capture_output=True, text=True, timeout=15,
     )
     if ssh_mkdir.returncode != 0:
@@ -73,9 +73,9 @@ def _remote_request(config, script, header, target, sudo):
         click.secho(f"  Failed to copy script: {scp.stderr.strip()}", fg="red")
         return
 
-    # chmod on remote
+    # chmod on remote — group-writable so the approver account can update
     subprocess.run(
-        ["ssh", target, f"chmod 755 {remote_dir}/{script_filename}"],
+        ["ssh", target, f"chmod 775 {remote_dir}/{script_filename}"],
         capture_output=True, timeout=10,
     )
 
@@ -91,7 +91,7 @@ def _remote_request(config, script, header, target, sudo):
     meta_json = task.to_json()
 
     ssh_meta = subprocess.run(
-        ["ssh", target, f"cat > {remote_dir}/{task_id}.json"],
+        ["ssh", target, f"cat > {remote_dir}/{task_id}.json && chmod 664 {remote_dir}/{task_id}.json"],
         input=meta_json, capture_output=True, text=True, timeout=15,
     )
     if ssh_meta.returncode != 0:
