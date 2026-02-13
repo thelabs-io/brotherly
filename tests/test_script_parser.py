@@ -151,3 +151,118 @@ def test_shebang_only(tmp_dir):
     header = parse_script_header(path)
     assert header.title == "bare"
     assert header.description == ""
+
+
+# --- Prep command tests ---
+
+
+def test_single_prep_line(tmp_dir):
+    path = _write_script(tmp_dir, "install.sh", """\
+#!/bin/bash
+# Install tools
+#
+# Copies tools to Matt's account.
+#
+# prep: chmod -R g+rX ~/.local/share/tools/
+
+rsync -av ~/.local/share/tools/ /Users/matt/tools/
+""")
+    header = parse_script_header(path)
+    assert header.title == "Install tools"
+    assert "Copies tools" in header.description
+    assert "prep" not in header.description
+    assert header.prep == "chmod -R g+rX ~/.local/share/tools/"
+
+
+def test_multiple_prep_lines(tmp_dir):
+    path = _write_script(tmp_dir, "stage.sh", """\
+#!/bin/bash
+# Stage files
+#
+# Stages files for deployment.
+#
+# prep: mkdir -p /tmp/staging
+# prep: chmod -R g+rX ~/data/
+
+cp -R /tmp/staging/ /Users/matt/deploy/
+""")
+    header = parse_script_header(path)
+    assert header.title == "Stage files"
+    assert "prep" not in header.description
+    assert header.prep == "mkdir -p /tmp/staging\nchmod -R g+rX ~/data/"
+
+
+def test_prep_block(tmp_dir):
+    path = _write_script(tmp_dir, "deploy.sh", """\
+#!/bin/bash
+# Deploy application
+#
+# Full deployment with staging.
+#
+# prep-start
+# mkdir -p /tmp/staging
+# chmod -R g+rX ~/.config/app/
+# cp -R ~/data /tmp/staging/
+# prep-end
+
+rsync -av /tmp/staging/ /Users/matt/app/
+""")
+    header = parse_script_header(path)
+    assert header.title == "Deploy application"
+    assert "Full deployment" in header.description
+    assert "prep" not in header.description
+    assert "mkdir -p /tmp/staging" in header.prep
+    assert "chmod -R g+rX ~/.config/app/" in header.prep
+    assert "cp -R ~/data /tmp/staging/" in header.prep
+
+
+def test_prep_with_description_interleaved(tmp_dir):
+    path = _write_script(tmp_dir, "mixed.sh", """\
+#!/bin/bash
+# Copy configs
+#
+# Copies config files to Matt's account.
+# prep: chmod -R g+rX ~/.config/myapp/
+#
+# Safe to re-run.
+
+cp -R ~/.config/myapp/ /Users/matt/.config/myapp/
+""")
+    header = parse_script_header(path)
+    assert header.title == "Copy configs"
+    assert "Copies config files" in header.description
+    assert "Safe to re-run" in header.description
+    assert "prep" not in header.description
+    assert header.prep == "chmod -R g+rX ~/.config/myapp/"
+
+
+def test_no_prep(tmp_dir):
+    path = _write_script(tmp_dir, "simple.sh", """\
+#!/bin/bash
+# Simple task
+#
+# No prep needed.
+
+echo "hello"
+""")
+    header = parse_script_header(path)
+    assert header.prep == ""
+
+
+def test_prep_with_delimiter(tmp_dir):
+    path = _write_script(tmp_dir, "delim.sh", """\
+#!/bin/bash
+# Guarded script
+#
+# Has a setup step and a delimiter.
+#
+# prep: chmod g+r ~/secret.txt
+# ---
+# shellcheck disable=SC2034
+VAR="value"
+""")
+    header = parse_script_header(path)
+    assert header.title == "Guarded script"
+    assert header.prep == "chmod g+r ~/secret.txt"
+    assert "shellcheck" not in header.description
+    assert "chmod" not in header.description

@@ -63,6 +63,21 @@ def _remote_request(config, script, header, target, sudo):
         click.secho(f"  Failed to create remote dir: {ssh_mkdir.stderr.strip()}", fg="red")
         return
 
+    # Run prep commands as the requester (chris) before queuing
+    if header.prep:
+        click.echo(f"  Running prep commands on {target}...")
+        ssh_prep = subprocess.run(
+            ["ssh", target, header.prep],
+            capture_output=True, text=True, timeout=60,
+        )
+        if ssh_prep.returncode != 0:
+            click.secho(f"  Prep failed: {ssh_prep.stderr.strip()}", fg="red")
+            if ssh_prep.stdout.strip():
+                click.echo(f"  {ssh_prep.stdout.strip()}")
+            return
+        if ssh_prep.stdout.strip():
+            click.echo(f"  {ssh_prep.stdout.strip()}")
+
     # SCP the script
     remote_path = f"{target}:{remote_dir}/{script_filename}"
     scp = subprocess.run(

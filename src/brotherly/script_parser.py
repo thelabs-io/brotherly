@@ -13,6 +13,7 @@ class ScriptHeader:
     title: str
     description: str
     body_start_line: int  # first line of actual code (0-indexed)
+    prep: str = ""  # commands to run as the requester before queuing
 
 
 def parse_script_header(script_path: Path) -> ScriptHeader:
@@ -69,7 +70,10 @@ def parse_script_header(script_path: Path) -> ScriptHeader:
             body_start_line=line_idx,
         )
 
-    # Collect description lines
+    # Collect description and prep lines
+    prep_lines: list[str] = []
+    in_prep_block = False
+
     while line_idx < len(lines):
         line = lines[line_idx]
         stripped = line.strip()
@@ -78,6 +82,32 @@ def parse_script_header(script_path: Path) -> ScriptHeader:
         if stripped == "# ---":
             line_idx += 1
             break
+
+        # Prep block end
+        if in_prep_block:
+            if stripped == "# prep-end":
+                in_prep_block = False
+                line_idx += 1
+                continue
+            # Collect prep block line (strip comment prefix)
+            if stripped.startswith("#"):
+                prep_lines.append(_strip_comment(stripped))
+            line_idx += 1
+            continue
+
+        # Prep block start
+        if stripped == "# prep-start":
+            in_prep_block = True
+            line_idx += 1
+            continue
+
+        # Single-line prep directive
+        if stripped.startswith("# prep:"):
+            prep_cmd = stripped[7:].strip()
+            if prep_cmd:
+                prep_lines.append(prep_cmd)
+            line_idx += 1
+            continue
 
         # Comment line — part of description
         if stripped.startswith("#"):
@@ -104,6 +134,9 @@ def parse_script_header(script_path: Path) -> ScriptHeader:
     while desc_lines and desc_lines[-1] == "":
         desc_lines.pop()
 
+    # Build prep command string
+    prep = "\n".join(prep_lines) if prep_lines else ""
+
     # Skip blank lines after header to get to actual code
     while line_idx < len(lines) and lines[line_idx].strip() == "":
         line_idx += 1
@@ -112,6 +145,7 @@ def parse_script_header(script_path: Path) -> ScriptHeader:
         title=title,
         description="\n".join(desc_lines),
         body_start_line=line_idx,
+        prep=prep,
     )
 
 
