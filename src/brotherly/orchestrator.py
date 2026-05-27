@@ -22,6 +22,7 @@ def run(config: Config | None = None) -> None:
     if config is None:
         config = Config.load()
     requests = RequestManager(config)
+    executed_tasks: list = []
 
     while True:
         pending = requests.list_pending()
@@ -79,6 +80,7 @@ def run(config: Config | None = None) -> None:
         task.completed_at = datetime.now().isoformat()
         task.status = TaskStatus.COMPLETED if exit_code == 0 else TaskStatus.FAILED
         requests.update_task(task)
+        executed_tasks.append(task)
 
         success = exit_code == 0
         if success:
@@ -98,6 +100,15 @@ def run(config: Config | None = None) -> None:
 
         # Phase 4: Send notifications in background
         _notify_background(task_id, str(log_path))
+
+    # Phase 5: Verify all executed tasks with Claude
+    if executed_tasks:
+        try:
+            from brotherly.verify import verify_batch
+
+            verify_batch(executed_tasks, config)
+        except Exception as e:
+            print(f"\n\033[33m  Verification skipped: {e}\033[0m")
 
 
 def _print_no_requests() -> None:
