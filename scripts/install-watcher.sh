@@ -1,20 +1,16 @@
 #!/bin/bash
 # Install the Brotherly notification system
 #
-# Sets up two macOS LaunchAgents:
-#
-# 1. **Request watcher** - monitors the requests directory and shows
-#    dialogs when new requests arrive (Approve/Skip/View Script)
-#
-# 2. **Notification handler** - shows clickable macOS notifications
-#    sent by Chris or his agents. Clicking opens the brotherly TUI
-#    in Terminal.app.
+# Sets up a macOS LaunchAgent that shows clickable notifications
+# when Chris or his agents send a message. Clicking a notification
+# opens the brotherly TUI in Terminal.app so Matt can review and
+# approve pending requests.
 #
 # Also installs `terminal-notifier` via Homebrew for clickable
 # notifications.
 #
-# The agents run automatically on login and trigger whenever new
-# files appear in the watched directories.
+# The agent runs automatically on login and triggers whenever new
+# files appear in the notifications directory.
 # ---
 
 set -euo pipefail
@@ -41,17 +37,11 @@ fi
 
 # Make helper scripts executable
 chmod +x "$BROTHERLY_DIR/scripts/open-brotherly.sh" 2>/dev/null || true
-chmod +x "$BROTHERLY_DIR/scripts/brotherly-watcher.py" 2>/dev/null || true
 chmod +x "$BROTHERLY_DIR/scripts/brotherly-notification-handler.py" 2>/dev/null || true
 
-# Install request watcher
-WATCHER_PLIST="com.brotherly.watcher.plist"
-echo ""
-echo "Installing request watcher..."
-launchctl unload "$LAUNCH_AGENTS_DIR/$WATCHER_PLIST" 2>/dev/null || true
-cp "$BROTHERLY_DIR/launchd/$WATCHER_PLIST" "$LAUNCH_AGENTS_DIR/"
-launchctl load "$LAUNCH_AGENTS_DIR/$WATCHER_PLIST"
-echo "  Loaded: $WATCHER_PLIST"
+# Unload old request watcher if present
+launchctl unload "$LAUNCH_AGENTS_DIR/com.brotherly.watcher.plist" 2>/dev/null || true
+rm -f "$LAUNCH_AGENTS_DIR/com.brotherly.watcher.plist"
 
 # Install notification handler
 NOTIF_PLIST="com.brotherly.notifications.plist"
@@ -64,12 +54,10 @@ echo "  Loaded: $NOTIF_PLIST"
 
 echo ""
 echo "=== Installed ==="
-echo "Request watcher:      watching $BROTHERLY_DIR/requests/"
 echo "Notification handler: watching $BROTHERLY_DIR/notifications/"
-echo ""
-echo "Both start automatically on login."
+echo "Starts automatically on login."
 
 # Verify
 echo ""
 echo "Status:"
-launchctl list | grep brotherly || echo "  Warning: agents may not have loaded."
+launchctl list | grep brotherly || echo "  Warning: agent may not have loaded."
