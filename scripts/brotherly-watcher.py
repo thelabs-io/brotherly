@@ -40,17 +40,23 @@ def find_logs_dir():
     return logs
 
 
-def get_pending_tasks(requests_dir):
-    """Return list of (json_path, task_data) for pending requests."""
+def get_unnotified_pending_tasks(requests_dir):
+    """Return list of (json_path, task_data) for pending requests not yet notified."""
     pending = []
     for f in sorted(requests_dir.glob("*.json")):
         try:
             data = json.loads(f.read_text())
-            if data.get("status") == "pending":
+            if data.get("status") == "pending" and not data.get("notified_at"):
                 pending.append((f, data))
         except (json.JSONDecodeError, KeyError):
             continue
     return pending
+
+
+def mark_notified(json_path, task_data):
+    """Stamp the task so the watcher won't re-notify for it."""
+    task_data["notified_at"] = datetime.now().isoformat()
+    json_path.write_text(json.dumps(task_data, indent=2))
 
 
 def osascript_dialog(title, message, buttons, default_button=None, icon="note"):
@@ -198,11 +204,17 @@ def main():
     if not requests_dir:
         return
 
-    pending = get_pending_tasks(requests_dir)
+    pending = get_unnotified_pending_tasks(requests_dir)
     if not pending:
         return
 
     logs_dir = find_logs_dir()
+
+    # Mark all tasks as notified immediately, before any dialogs.
+    # This prevents re-triggers: even if the watcher fires again
+    # while a dialog is open, it won't find unnotified tasks.
+    for json_path, task_data in pending:
+        mark_notified(json_path, task_data)
 
     count = len(pending)
     osascript_notify(
@@ -218,7 +230,6 @@ def main():
         requires_sudo = task_data.get("requires_sudo", False)
         task_id = task_data.get("id", json_path.stem)
 
-        # Truncate description for dialog (osascript has limits)
         desc_display = desc[:500].replace('"', '\\"').replace("\n", "\\n")
         sudo_note = "\\n\\n(requires admin password)" if requires_sudo else ""
 
@@ -261,10 +272,8 @@ def main():
             notify_chris(task_id, log_path)
 
         elif choice is None:
-            # Dialog was dismissed / cancelled - stop processing
             break
 
-    # Run verification on all executed tasks
     if executed_tasks:
         run_verification(executed_tasks, logs_dir)
 

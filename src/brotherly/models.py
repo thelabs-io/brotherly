@@ -28,6 +28,7 @@ class QueuedTask:
     requires_sudo: bool = False
     completed_at: str | None = None
     exit_code: int | None = None
+    notified_at: str | None = None
 
     @staticmethod
     def generate_id(title: str) -> str:
