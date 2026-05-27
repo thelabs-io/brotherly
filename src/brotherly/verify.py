@@ -20,6 +20,7 @@ def verify_batch(tasks: list[QueuedTask], config: Config) -> None:
         return
 
     summary_lines = []
+    log_paths = []
     for task in tasks:
         status = "OK" if task.exit_code == 0 else f"FAILED (exit {task.exit_code})"
         summary_lines.append(f"- [{status}] {task.title}")
@@ -27,8 +28,8 @@ def verify_batch(tasks: list[QueuedTask], config: Config) -> None:
             summary_lines.append(f"  Description: {task.description}")
         log_path = config.logs_dir / f"{task.id}.log"
         if log_path.exists():
-            log_tail = _tail(log_path, 40)
-            summary_lines.append(f"  Log (last 40 lines):\n{log_tail}")
+            summary_lines.append(f"  Log: {log_path}")
+            log_paths.append(str(log_path))
         summary_lines.append("")
 
     summary = "\n".join(summary_lines)
@@ -40,9 +41,10 @@ The following brotherly requests were just executed by Matt:
 {summary}
 
 Your job:
-1. Verify each task actually succeeded - check that the expected files, commands, or configs exist and work.
-2. If anything failed or is broken, fix it. You have full access to the system.
-3. Report what you verified and what you fixed (if anything).
+1. Read the log files to understand what happened.
+2. Verify each task actually succeeded - check that the expected files, commands, or configs exist and work.
+3. If anything failed or is broken, fix it. You have full access to the system.
+4. Report what you verified and what you fixed (if anything).
 
 Be thorough but concise. Focus on functional verification - can the tools actually run?"""
 
@@ -73,13 +75,3 @@ def _claude_available() -> bool:
         return result.returncode == 0
     except Exception:
         return False
-
-
-def _tail(path: Path, lines: int = 40) -> str:
-    try:
-        content = path.read_text()
-        all_lines = content.splitlines()
-        tail_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
-        return "\n".join(f"    {line}" for line in tail_lines)
-    except Exception:
-        return "    (could not read log)"
