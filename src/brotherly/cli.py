@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import click
@@ -116,6 +118,63 @@ def _remote_request(config, script, header, target, sudo):
     click.secho(f"  Requested: {header.title}", fg="green")
     click.echo(f"  Host: {target}")
     click.echo(f"  ID: {task_id}")
+
+    # Auto-notify Matt about the new request
+    desc_preview = (header.description or "").split("\n")[0][:80]
+    msg = f"{header.title}"
+    if desc_preview:
+        msg += f" - {desc_preview}"
+    _send_notification(config, target, "Brotherly: New Request", msg, has_pending=True)
+
+
+@main.command()
+@click.argument("message")
+@click.option("--title", "-t", default="Brotherly", help="Notification title")
+@click.option("--host", "-h", default=None, help="Remote host (SSH config alias)")
+@click.option("--pending", is_flag=True, help="Mark as having pending requests (clickable)")
+def notify(message: str, title: str, host: str | None, pending: bool) -> None:
+    """Send a notification to Matt."""
+    config = Config.load()
+    target = host or config.default_host
+
+    if not target:
+        click.secho("  No host configured. Use --host or set default_host.", fg="red")
+        return
+
+    _send_notification(config, target, title, message, pending)
+
+
+def _send_notification(config, target, title, message, has_pending):
+    """Write a notification JSON to the remote host."""
+    import time
+
+    notif_data = json.dumps({
+        "title": title,
+        "message": message,
+        "has_pending_requests": has_pending,
+        "sent_at": datetime.now().isoformat(),
+    })
+
+    remote_dir = config.remote_data_dir + "/notifications"
+    filename = f"{int(time.time() * 1000)}.json"
+
+    ssh_mkdir = subprocess.run(
+        ["ssh", target, f"mkdir -p {remote_dir}"],
+        capture_output=True, text=True, timeout=15,
+    )
+    if ssh_mkdir.returncode != 0:
+        click.secho(f"  Failed to create remote dir: {ssh_mkdir.stderr.strip()}", fg="red")
+        return
+
+    ssh_write = subprocess.run(
+        ["ssh", target, f"cat > {remote_dir}/{filename}"],
+        input=notif_data, capture_output=True, text=True, timeout=15,
+    )
+    if ssh_write.returncode != 0:
+        click.secho(f"  Failed to send notification: {ssh_write.stderr.strip()}", fg="red")
+        return
+
+    click.secho(f"  Sent: {message}", fg="green")
 
 
 @main.command(name="list")

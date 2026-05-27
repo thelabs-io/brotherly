@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.brotherly.notifications</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/matt/Bros/Projects/brotherly/scripts/brotherly-notification-handler.py</string>
+    </array>
+
+    <key>WatchPaths</key>
+    <array>
+        <string>/Users/matt/Bros/Projects/brotherly/notifications</string>
+    </array>
+
+    <key>StandardOutPath</key>
+    <string>/Users/matt/Bros/Projects/brotherly/logs/notifications.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/matt/Bros/Projects/brotherly/logs/notifications.log</string>
+
+    <key>ThrottleInterval</key>
+    <integer>3</integer>
+</dict>
+</plist>
