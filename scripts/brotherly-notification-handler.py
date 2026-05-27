@@ -73,9 +73,15 @@ def process_notifications():
             if message:
                 show_notification(title, message, has_pending)
 
-            f.unlink()
+            try:
+                f.unlink()
+            except OSError:
+                pass
         except (json.JSONDecodeError, Exception):
-            f.unlink(missing_ok=True)
+            try:
+                f.unlink()
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":
