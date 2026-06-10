@@ -55,7 +55,7 @@ else
 fi
 
 if [[ -d "$BROTHERLY_DIR/notifications" ]]; then
-    pending_notifs=$(ls "$BROTHERLY_DIR/notifications/"*.json 2>/dev/null | wc -l | tr -d ' ')
+    pending_notifs=$(find "$BROTHERLY_DIR/notifications" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
     check "notifications dir exists ($pending_notifs pending)" "ok"
 else
     check "notifications dir missing" "fail"
@@ -105,8 +105,9 @@ fi
 
 echo ""
 echo "Permissions:"
-skills_acl=$(ls -le -d "$HOME/.claude/skills" 2>/dev/null | grep -c "bros allow")
-bros_acl=$(ls -le -d "$HOME/Bros" 2>/dev/null | grep -c "bros allow")
+# grep -c exits 1 when the count is 0 — guard so set -e doesn't kill us
+skills_acl=$(ls -le -d "$HOME/.claude/skills" 2>/dev/null | grep -c "bros allow" || true)
+bros_acl=$(ls -le -d "$HOME/Bros" 2>/dev/null | grep -c "bros allow" || true)
 if [[ "$skills_acl" -gt 0 ]]; then
     check "ACL on ~/.claude/skills" "ok"
 else
@@ -123,8 +124,8 @@ echo "Git Repos:"
 for repo in brotherly coderoo; do
     dir="$HOME/Bros/Projects/$repo"
     if [[ -d "$dir/.git" ]]; then
-        branch=$(cd "$dir" && git branch --show-current 2>/dev/null)
-        commit=$(cd "$dir" && git log --oneline -1 2>/dev/null)
+        branch=$(cd "$dir" && git branch --show-current 2>/dev/null || true)
+        commit=$(cd "$dir" && git log --oneline -1 2>/dev/null || true)
         check "$repo ($branch): $commit" "ok"
     else
         check "$repo repo not found" "fail"
@@ -132,8 +133,26 @@ for repo in brotherly coderoo; do
 done
 
 echo ""
+echo "Notifications to Chris (z2):"
+Z2_KEY="$HOME/.ssh/id_ed25519_brotherly"
+if [[ -f "$Z2_KEY" ]]; then
+    check "z2 notify key exists" "ok"
+    # An unknown action proves auth + handler work without sending an SMS.
+    # BatchMode failures (missing known_hosts entry, key not authorized) show here.
+    z2_out=$(ssh -i "$Z2_KEY" -p 22440 -o ConnectTimeout=10 -o BatchMode=yes \
+        chris@zara2stra.duckdns.org "ping" </dev/null 2>&1 || true)
+    if [[ "$z2_out" == *"Unknown action"* ]]; then
+        check "z2 notify path works (auth + handler OK)" "ok"
+    else
+        check "z2 notify path FAILED: ${z2_out:-no output}" "fail"
+    fi
+else
+    check "z2 notify key MISSING ($Z2_KEY) — result notifications to Chris cannot work" "fail"
+fi
+
+echo ""
 echo "System:"
-mem_free=$(vm_stat | grep "Pages free" | awk '{print $3}' | tr -d '.')
+mem_free=$(vm_stat | grep "Pages free" | awk '{print $3}' | tr -d '.' || true)
 mem_free_mb=$(( mem_free * 16384 / 1048576 ))
 echo "  Free memory: ${mem_free_mb} MB"
 echo "  Uptime: $(uptime | sed 's/.*up /up /' | sed 's/,.*//')"

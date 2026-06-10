@@ -45,5 +45,7 @@ Thumbs.db
 
 # Runtime data (queue, logs, config are per-machine)
 queue/
+requests/
+notifications/
 logs/
 config.json5

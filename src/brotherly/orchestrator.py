@@ -82,6 +82,16 @@ def run(config: Config | None = None) -> None:
         requests.update_task(task)
         executed_tasks.append(task)
 
+        # Scripts under `set -e` can die without printing anything (the error
+        # never reaches the log) — always record the outcome in the log itself.
+        try:
+            with open(log_path, "a") as log_file:
+                log_file.write(
+                    f"\n[brotherly] exit code {exit_code} at {task.completed_at}\n"
+                )
+        except OSError:
+            pass
+
         success = exit_code == 0
         if success:
             print(f"\n\033[1;32m{'═' * 60}\033[0m")
