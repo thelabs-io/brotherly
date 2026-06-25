@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# brotherly-watch-stop <uuid> - tear down a watched session: kill the bridge, close
+# the mac window, and remove per-session files.
+set -euo pipefail
+
+UUID="${1:-}"
+[[ -n "$UUID" ]] || { echo "usage: brotherly-watch-stop <uuid>" >&2; exit 2; }
+
+WATCH_DIR="$HOME/.brotherly/watch"
+STATE="$WATCH_DIR/$UUID.state"
+MM="mm"
+BRIDGE_PID=""
+# shellcheck disable=SC1090
+[[ -f "$STATE" ]] && source "$STATE"
+
+# Kill the bridge (setsid made it a process-group leader; kill the whole group).
+if [[ -n "${BRIDGE_PID:-}" ]]; then
+    kill -TERM -"$BRIDGE_PID" 2>/dev/null || kill -TERM "$BRIDGE_PID" 2>/dev/null || true
+fi
+
+# Close the mac session and tidy its per-session files.
+ssh "$MM" "pkill -f 'claude --session-id $UUID'" 2>/dev/null || true
+ssh "$MM" "rm -f ~/.claude/inbox/$UUID.jsonl ~/.brotherly/watch/$UUID-reply \
+    ~/.brotherly/watch/$UUID-run.command ~/.brotherly/watch/$UUID.outbox.jsonl" 2>/dev/null || true
+
+rm -f "$HOME/.claude/inbox/$UUID.jsonl" "$STATE"
+echo "stopped watched session $UUID"

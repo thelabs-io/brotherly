@@ -17,10 +17,22 @@ that triggers it is **out of scope** here (next loop).
 
 - Test machine `mm` = the Mac Mini (`chris@mm.lan`, macOS 26.4, on the LAN at
   `192.168.86.44`). `claude` is at `/Users/chris/.local/bin/claude` and supports
-  `--session-id <uuid>` (verified 2026-06-24).
-- `chris` is logged in at the mm console and `screencapture` is present, so the live
-  window is screenshot-able over SSH.
-- z2 has a Wayland session with `grim`, so the z2 side is screenshot-able too.
+  `--session-id <uuid>` (verified 2026-06-24). NOTE: `claude` is on PATH only via an
+  INTERACTIVE shell (`zsh -ic`) - it lives in `~/.local/bin`, added by `.zshrc`.
+- `chris` is logged in at the mm console, but `screencapture` over SSH FAILS
+  (`could not create image from display`) because mm's Terminal lacks Screen Recording
+  (TCC) permission and `launchctl asuser` needs root. mm screenshots therefore need a
+  one-time TCC grant or a manual capture - tracked as a tier-2 caveat, not a blocker.
+- z2 has a Wayland session with `grim`, so the z2 side is screenshot-able.
+
+## Prerequisite: claude auth on mm
+
+`claude` on mm must be authenticated with the **Max subscription** (never the metered
+API). One-time setup: run `claude setup-token` on mm and save the printed token to
+`~/.brotherly/watch/oauth-token` (mode 600). The generated `run.command` exports it as
+`CLAUDE_CODE_OAUTH_TOKEN`; the launcher refuses to start if the file is absent. A
+long-lived token (vs copying z2's `credentials.json`) avoids refresh-token rotation
+conflicts between the two always-on machines.
 
 ## Architecture (no SSH-key / authorized_keys changes required)
 
