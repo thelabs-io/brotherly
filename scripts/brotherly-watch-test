@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# brotherly-watch-test - Tier-1 machine check for Brotherly Watch (docs/watched-session.md).
+#
+# Launches a watched Claude session on mm, waits for it to come live (READY), sends a
+# PING <token>, and asserts that within the timeout the agent BOTH replied PONG <token>
+# back to z2 AND created /tmp/brotherly-proof-<token>.txt on mm. Exit 0 iff both hold.
+#
+# Best-effort: also tries to screenshot both machines for the human-facing demo (the
+# mm capture may fail until Terminal is granted Screen Recording - that does not affect
+# the pass/fail result).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MM="mm"
+SHOTS="${BROTHERLY_WATCH_SHOTS:-$HOME/.brotherly/watch/shots}"
+mkdir -p "$SHOTS"
+
+TOKEN="bz$RANDOM$RANDOM"
+REPLY_TARGET="watchtest-$$"
+REPLY_INBOX="$HOME/.claude/inbox/$REPLY_TARGET.jsonl"
+LAUNCH_OUT="$(mktemp)"
+UUID=""
+
+cleanup() {
+    [[ -n "$UUID" ]] && "$SCRIPT_DIR/brotherly-watch-stop" "$UUID" >/dev/null 2>&1 || true
+    rm -f "$LAUNCH_OUT" "$REPLY_INBOX"
+}
+trap cleanup EXIT
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+
+command -v inbox-send >/dev/null || fail "inbox-send not on PATH (agent-bbs not installed on z2)"
+
+TASK="DEMO TASK: When a message text contains \"PING <token>\" (token = the word after PING), do BOTH, in order: (1) write the file /tmp/brotherly-proof-<token>.txt containing exactly <token> and nothing else; (2) reply with the text \"PONG <token>\". Then keep waiting for more messages."
+
+echo "== launching watched session on $MM (token=$TOKEN) =="
+"$SCRIPT_DIR/brotherly-watch-launch" --reply-target "$REPLY_TARGET" --yolo --task "$TASK" \
+    | tee "$LAUNCH_OUT"
+UUID="$(awk '/^  uuid:/{print $2}' "$LAUNCH_OUT")"
+[[ -n "$UUID" ]] || fail "could not parse UUID from launch output"
+echo "== uuid=$UUID =="
+
+# 1) wait for READY (session booted + monitor armed + reply path proven)
+echo "== waiting up to 120s for READY handshake =="
+ready=0
+for i in $(seq 1 120); do
+    if grep -q '"text": *"READY"' "$REPLY_INBOX" 2>/dev/null || grep -q 'READY' "$REPLY_INBOX" 2>/dev/null; then
+        ready=1; echo "   READY after ${i}s"; break
+    fi
+    sleep 1
+done
+[[ "$ready" == 1 ]] || fail "no READY handshake within 120s (session never came live)"
+
+# 2) send the PING
+echo "== sending PING $TOKEN =="
+inbox-send "$UUID" "PING $TOKEN please do the demo task" --from-session brotherly-watch-test >/dev/null
+
+# 3) wait for PONG <token> back on z2 AND the proof file on mm
+echo "== waiting up to 90s for PONG + proof file =="
+pong=0; proof=0
+for i in $(seq 1 90); do
+    [[ "$pong" == 0 ]] && grep -q "PONG $TOKEN" "$REPLY_INBOX" 2>/dev/null && { pong=1; echo "   PONG $TOKEN received after ${i}s"; }
+    [[ "$proof" == 0 ]] && ssh "$MM" "grep -qx '$TOKEN' /tmp/brotherly-proof-$TOKEN.txt" 2>/dev/null && { proof=1; echo "   proof file verified on mm after ${i}s"; }
+    [[ "$pong" == 1 && "$proof" == 1 ]] && break
+    sleep 1
+done
+
+# 4) best-effort screenshots (do NOT gate pass/fail)
+echo "== capturing screenshots (best-effort) =="
+ssh "$MM" "/usr/sbin/screencapture -x -t png /tmp/brotherly-mm-shot.png" 2>/dev/null \
+    && scp -q "$MM:/tmp/brotherly-mm-shot.png" "$SHOTS/mm-$TOKEN.png" 2>/dev/null \
+    && echo "   mm screenshot -> $SHOTS/mm-$TOKEN.png" \
+    || echo "   mm screenshot unavailable (Terminal needs Screen Recording permission)"
+if command -v grim >/dev/null; then
+    grim "$SHOTS/z2-$TOKEN.png" 2>/dev/null && echo "   z2 screenshot -> $SHOTS/z2-$TOKEN.png" || true
+fi
+
+# verdict
+echo "== result: pong=$pong proof=$proof =="
+[[ "$pong" == 1 ]] || fail "no PONG $TOKEN reply within 90s"
+[[ "$proof" == 1 ]] || fail "proof file /tmp/brotherly-proof-$TOKEN.txt not found/correct on mm"
+echo "PASS: cross-machine watched-session round-trip verified (uuid=$UUID)"
+ssh "$MM" "rm -f /tmp/brotherly-proof-$TOKEN.txt" 2>/dev/null || true
+exit 0

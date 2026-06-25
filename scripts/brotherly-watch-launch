@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# brotherly-watch-launch - open a visible, BBS-reachable "watched" Claude session on
+# the Mac (mm) that Chris can drive from z2 while a human watches the window.
+#
+# Pieces (see docs/watched-session.md):
+#   - a deterministic session UUID (so both sides know the bbs address up front)
+#   - per-session files on mm under ~/.brotherly/watch/ (reply helper + run.command)
+#   - a Terminal.app window opened via `/usr/bin/open <uuid>-run.command`
+#     (no AppleEvents/Automation TCC prompt, unlike osascript)
+#   - the z2<->mm inbox bridge (brotherly-watch-bridge) started detached
+#
+# Usage:
+#   brotherly-watch-launch --reply-target <z2-inbox-id> [--task <text>] [--yolo]
+#                          [--cwd <mm-path>] [--mm <ssh-alias>]
+#
+#   --reply-target  z2 inbox id that receives the agent's replies (required)
+#   --task          extra behavior appended to the base watched-session prompt
+#   --yolo          run the mac session with --dangerously-skip-permissions so it can
+#                   act unattended (demo only; the Matt-facing mode uses an allowlist)
+#   --cwd           working dir for the mac session (default: mm $HOME)
+#   --mm            ssh alias for the mac (default: mm)
+#
+# Prints the UUID and the `inbox-send <uuid> "..."` line to message the session.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MM="mm"
+REPLY_TARGET=""
+TASK=""
+PERM_FLAGS=""
+CWD=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --reply-target) REPLY_TARGET="$2"; shift 2;;
+        --task)         TASK="$2"; shift 2;;
+        --yolo)         PERM_FLAGS="--dangerously-skip-permissions"; shift;;
+        --cwd)          CWD="$2"; shift 2;;
+        --mm)           MM="$2"; shift 2;;
+        *) echo "unknown arg: $1" >&2; exit 2;;
+    esac
+done
+[[ -n "$REPLY_TARGET" ]] || { echo "--reply-target is required" >&2; exit 2; }
+# Validate caller-supplied values: they reach remote shells and the sourced state file.
+for v in "$REPLY_TARGET" "$MM"; do
+    [[ "$v" =~ ^[A-Za-z0-9._@-]+$ ]] || { echo "unsafe value (allowed chars: A-Za-z0-9._@-): $v" >&2; exit 2; }
+done
+
+UUID="$(cat /proc/sys/kernel/random/uuid)"
+WATCH_DIR="$HOME/.brotherly/watch"      # z2-side state/logs
+mkdir -p "$WATCH_DIR"
+
+# Discover mm's python3 and claude. Use an INTERACTIVE shell (-i): claude lives in
+# ~/.local/bin, which is added by .zshrc (interactive), not the login files.
+MM_PY="$(ssh "$MM" 'zsh -ic "command -v python3"' 2>/dev/null | tail -1)"
+MM_CLAUDE="$(ssh "$MM" 'zsh -ic "command -v claude"' 2>/dev/null | tail -1)"
+[[ -n "$MM_PY" && -n "$MM_CLAUDE" ]] || { echo "could not find python3/claude on $MM" >&2; exit 1; }
+[[ -n "$CWD" ]] || CWD="\$HOME"
+
+# claude on mm must be authenticated via a Max-subscription OAuth token.
+if ! ssh "$MM" 'test -r "$HOME/.brotherly/watch/oauth-token"'; then
+    {
+        echo "ERROR: claude on $MM is not authenticated."
+        echo "Run this once on $MM (Max subscription, never the API):"
+        echo "    claude setup-token"
+        echo "then save the printed token (the file stays mode 600 on $MM):"
+        echo "    umask 077; mkdir -p ~/.brotherly/watch; printf %s '<TOKEN>' > ~/.brotherly/watch/oauth-token"
+    } >&2
+    exit 1
+fi
+
+# --- Build the agent prompt (base + optional task), then base64 it so nothing has to
+#     survive shell/AppleScript quoting on the way to mm. ---
+PROMPT="$(cat <<EOF
+You are a Brotherly "watched session": a real Claude session running in a visible
+Terminal window on a Mac so a human can watch you work, driven remotely by Chris over
+a file-based message bus.
+
+STEP 1 (do this immediately, before anything else): arm a persistent message monitor
+so you receive Chris's messages live. Call the Monitor tool with persistent=true and
+EXACTLY this command:
+  command tail -F ~/.claude/inbox/$UUID.jsonl | command grep --line-buffered -v '"from": "$UUID"'
+Each event line is a JSON object {"from","ts","text"} - a message FROM CHRIS, not from
+your local user. Act on its "text" field.
+
+To reply to Chris, run this command (it delivers your message back to him):
+  ~/.brotherly/watch/$UUID-reply "your reply text here"
+
+STEP 2: immediately after arming the monitor, send exactly one reply: READY
+
+$TASK
+
+After steps 1-2, stay running and idle, waiting for messages. Do not exit.
+EOF
+)"
+PROMPT_B64="$(printf '%s' "$PROMPT" | base64 -w0)"
+
+# --- Generate the per-session mm files locally, then scp them (no remote quoting). ---
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+cat > "$TMP/reply" <<EOF
+#!$MM_PY
+import json, os, sys, datetime
+text = " ".join(sys.argv[1:])
+rec = {"from": "$UUID",
+       "ts": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+       "text": text}
+with open(os.path.expanduser("~/.brotherly/watch/$UUID.outbox.jsonl"), "a") as f:
+    f.write(json.dumps(rec) + "\n")
+EOF
+
+cat > "$TMP/run.command" <<EOF
+#!/bin/bash
+# Brotherly watched session $UUID
+cd "$CWD" 2>/dev/null || cd "\$HOME"
+# Authenticate via the Max-subscription OAuth token (never the metered API).
+if [ -r "\$HOME/.brotherly/watch/oauth-token" ]; then
+    export CLAUDE_CODE_OAUTH_TOKEN="\$(cat "\$HOME/.brotherly/watch/oauth-token")"
+fi
+PROMPT="\$('$MM_PY' -c 'import base64,sys;sys.stdout.write(base64.b64decode(sys.argv[1]).decode())' '$PROMPT_B64')"
+exec '$MM_CLAUDE' --session-id '$UUID' --strict-mcp-config $PERM_FLAGS "\$PROMPT"
+EOF
+
+ssh "$MM" "mkdir -p ~/.claude/inbox ~/.brotherly/watch && touch ~/.claude/inbox/$UUID.jsonl ~/.brotherly/watch/$UUID.outbox.jsonl"
+scp -q "$TMP/reply" "$MM:.brotherly/watch/$UUID-reply"
+scp -q "$TMP/run.command" "$MM:.brotherly/watch/$UUID-run.command"
+ssh "$MM" "chmod +x ~/.brotherly/watch/$UUID-reply ~/.brotherly/watch/$UUID-run.command"
+
+# --- Start the z2<->mm bridge, detached so it outlives this launcher. ---
+touch "$HOME/.claude/inbox/$UUID.jsonl" "$HOME/.claude/inbox/$REPLY_TARGET.jsonl"
+setsid bash "$SCRIPT_DIR/brotherly-watch-bridge" "$UUID" "$REPLY_TARGET" "$MM" \
+    >"$WATCH_DIR/$UUID.bridge.log" 2>&1 < /dev/null &
+BRIDGE_PID=$!
+disown 2>/dev/null || true
+
+# Single-quote values: the file is `source`d by brotherly-watch-stop. Values are already
+# charset-validated, so the quotes are belt-and-suspenders against code execution.
+cat > "$WATCH_DIR/$UUID.state" <<EOF
+UUID='$UUID'
+REPLY_TARGET='$REPLY_TARGET'
+MM='$MM'
+BRIDGE_PID='$BRIDGE_PID'
+RUN_COMMAND='$HOME/.brotherly/watch/$UUID-run.command'
+EOF
+
+# --- Open the visible Terminal window on mm. ---
+ssh "$MM" "/usr/bin/open ~/.brotherly/watch/$UUID-run.command"
+
+cat <<EOF
+
+watched session launched on $MM
+  uuid:         $UUID
+  reply-target: $REPLY_TARGET   (replies land in ~/.claude/inbox/$REPLY_TARGET.jsonl on z2)
+  bridge pid:   $BRIDGE_PID     (log: $WATCH_DIR/$UUID.bridge.log)
+
+message it from z2 with:
+  inbox-send $UUID "your message"
+
+stop it with:
+  brotherly-watch-stop $UUID
+EOF
