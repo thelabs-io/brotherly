@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# brotherly-watch-bridge - bridge an agent-bbs inbox between z2 and the Mac (mm).
+#
+# Both directions are driven FROM z2, because z2 -> mm SSH works unrestricted while
+# mm -> z2 has no usable general route (default key denied; the brotherly key is
+# command-locked to brotherly-notify). Two persistent-SSH byte streams:
+#
+#   down:  tail z2 inbox/<uuid>      | ssh mm "cat >> mm inbox/<uuid>"   (deliver to agent)
+#   up:    ssh mm "tail mm outbox/<uuid>"  >> z2 inbox/<reply-target>    (agent's replies)
+#
+# Raw byte streams (cat >> / redirect) avoid any JSON re-escaping across SSH.
+#
+# Usage: brotherly-watch-bridge <uuid> <reply-target> [mm-ssh-alias]
+#   Runs in the foreground and blocks; the caller backgrounds it. Ctrl-C / SIGTERM
+#   tears down both streams.
+set -euo pipefail
+
+UUID="${1:-}"
+REPLY_TARGET="${2:-}"
+MM="${3:-mm}"
+if [[ -z "$UUID" || -z "$REPLY_TARGET" ]]; then
+    echo "usage: brotherly-watch-bridge <uuid> <reply-target> [mm-ssh-alias]" >&2
+    exit 2
+fi
+
+# Constrain ids to a safe charset (they are interpolated into a remote shell command).
+for v in "$UUID" "$REPLY_TARGET"; do
+    [[ "$v" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "bridge: unsafe id '$v'" >&2; exit 2; }
+done
+
+INBOX_DIR="$HOME/.claude/inbox"
+Z2_INBOX="$INBOX_DIR/$UUID.jsonl"                 # down: source (on z2)
+Z2_REPLY="$INBOX_DIR/$REPLY_TARGET.jsonl"         # up:   dest   (on z2)
+MM_INBOX="\$HOME/.claude/inbox/$UUID.jsonl"       # down: dest   (on mm, remote-expanded)
+MM_OUTBOX="\$HOME/.brotherly/watch/$UUID.outbox.jsonl"  # up: source (on mm)
+
+# Ensure local (z2) files exist so tail -F / appends have a target.
+mkdir -p "$INBOX_DIR"
+touch "$Z2_INBOX" "$Z2_REPLY"
+
+# Ensure remote (mm) dirs/files exist.
+ssh "$MM" "mkdir -p \$HOME/.claude/inbox \$HOME/.brotherly/watch && touch $MM_INBOX $MM_OUTBOX"
+
+pids=()
+cleanup() { trap - EXIT INT TERM; kill "${pids[@]}" 2>/dev/null || true; }
+trap cleanup EXIT INT TERM
+
+# down: new z2 inbox lines -> mm inbox (agent's local Monitor delivers them)
+( command tail -n0 -F "$Z2_INBOX" | ssh "$MM" "cat >> $MM_INBOX" ) &
+pids+=($!)
+
+# up: new mm outbox lines (agent replies) -> z2 reply-target inbox
+( ssh "$MM" "command tail -n0 -F $MM_OUTBOX" >> "$Z2_REPLY" ) &
+pids+=($!)
+
+echo "bridge up: down=z2:$Z2_INBOX->mm  up=mm->z2:$Z2_REPLY  (mm=$MM, pids=${pids[*]})" >&2
+wait
