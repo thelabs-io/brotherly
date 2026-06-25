@@ -31,7 +31,7 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 command -v inbox-send >/dev/null || fail "inbox-send not on PATH (agent-bbs not installed on z2)"
 
-TASK="DEMO TASK: When a message text contains \"PING <token>\" (token = the word after PING), do BOTH, in order: (1) write the file /tmp/brotherly-proof-<token>.txt containing exactly <token> and nothing else; (2) reply with the text \"PONG <token>\". Then keep waiting for more messages."
+TASK="DEMO TASK: When a message text contains \"PING <token>\" (token = the word after PING), do BOTH, in order: (1) write the file /tmp/brotherly-proof-<token>.txt containing exactly <token> and nothing else; (2) reply with the text \"PONG <token>\". Separately, when a message text contains \"CAPTURE <token>\" (token = the word after CAPTURE), run exactly this shell command: /usr/sbin/screencapture -x -t png /tmp/brotherly-self-<token>.png  then reply with the text \"CAPTURED <token>\". Always keep waiting for more messages after each."
 
 echo "== launching watched session on $MM (token=$TOKEN) =="
 "$SCRIPT_DIR/brotherly-watch-launch" --reply-target "$REPLY_TARGET" --yolo --task "$TASK" \
@@ -67,12 +67,29 @@ done
 
 # 4) best-effort screenshots (do NOT gate pass/fail)
 echo "== capturing screenshots (best-effort) =="
-ssh "$MM" "/usr/sbin/screencapture -x -t png /tmp/brotherly-mm-shot.png" 2>/dev/null \
-    && scp -q "$MM:/tmp/brotherly-mm-shot.png" "$SHOTS/mm-$TOKEN.png" 2>/dev/null \
-    && echo "   mm screenshot -> $SHOTS/mm-$TOKEN.png" \
-    || echo "   mm screenshot unavailable (Terminal needs Screen Recording permission)"
-if command -v grim >/dev/null; then
-    grim "$SHOTS/z2-$TOKEN.png" 2>/dev/null && echo "   z2 screenshot -> $SHOTS/z2-$TOKEN.png" || true
+# mm side: ask the watched session to screencapture its OWN Terminal. `ssh screencapture`
+# can't - an SSH context has no GUI display - but the session runs inside the GUI, so it
+# can (given Terminal's Screen Recording grant). Then pull the PNG back to z2.
+MM_SELF="/tmp/brotherly-self-$TOKEN.png"
+ssh "$MM" "rm -f '$MM_SELF'" 2>/dev/null || true
+inbox-send "$UUID" "CAPTURE $TOKEN" --from-session brotherly-watch-test >/dev/null 2>&1 || true
+for i in $(seq 1 20); do
+    ssh "$MM" "test -s '$MM_SELF'" 2>/dev/null && break
+    sleep 1
+done
+if ssh "$MM" "test -s '$MM_SELF'" 2>/dev/null \
+        && scp -q "$MM:$MM_SELF" "$SHOTS/mm-$TOKEN.png" 2>/dev/null; then
+    echo "   mm screenshot -> $SHOTS/mm-$TOKEN.png"
+    ssh "$MM" "rm -f '$MM_SELF'" 2>/dev/null || true
+else
+    echo "   mm screenshot unavailable (Terminal needs Screen Recording grant on $MM)"
+fi
+# z2 side: grim only works on wlroots; on GNOME/Wayland the helper uses the
+# xdg-desktop-portal Screenshot API instead (and falls back to grim elsewhere).
+if "$SCRIPT_DIR/brotherly-screenshot-z2" "$SHOTS/z2-$TOKEN.png" >/dev/null 2>&1; then
+    echo "   z2 screenshot -> $SHOTS/z2-$TOKEN.png"
+else
+    echo "   z2 screenshot unavailable"
 fi
 
 # verdict
