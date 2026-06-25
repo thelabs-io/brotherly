@@ -31,26 +31,33 @@ done
 INBOX_DIR="$HOME/.claude/inbox"
 Z2_INBOX="$INBOX_DIR/$UUID.jsonl"                 # down: source (on z2)
 Z2_REPLY="$INBOX_DIR/$REPLY_TARGET.jsonl"         # up:   dest   (on z2)
-MM_INBOX="\$HOME/.claude/inbox/$UUID.jsonl"       # down: dest   (on mm, remote-expanded)
-MM_OUTBOX="\$HOME/.brotherly/watch/$UUID.outbox.jsonl"  # up: source (on mm)
+# Resolve mm's HOME once so remote paths are literal and can be single-quoted (handles
+# a space in HOME; the id suffix is already charset-validated above).
+MM_HOME="$(ssh "$MM" 'printf %s "$HOME"')"
+[[ -n "$MM_HOME" ]] || { echo "bridge: could not resolve HOME on $MM" >&2; exit 1; }
+MM_INBOX="$MM_HOME/.claude/inbox/$UUID.jsonl"            # down: dest   (on mm)
+MM_OUTBOX="$MM_HOME/.brotherly/watch/$UUID.outbox.jsonl" # up:   source (on mm)
 
 # Ensure local (z2) files exist so tail -F / appends have a target.
 mkdir -p "$INBOX_DIR"
 touch "$Z2_INBOX" "$Z2_REPLY"
 
 # Ensure remote (mm) dirs/files exist.
-ssh "$MM" "mkdir -p \$HOME/.claude/inbox \$HOME/.brotherly/watch && touch $MM_INBOX $MM_OUTBOX"
+ssh "$MM" "mkdir -p '$MM_HOME/.claude/inbox' '$MM_HOME/.brotherly/watch' && touch '$MM_INBOX' '$MM_OUTBOX'"
 
 pids=()
-cleanup() { trap - EXIT INT TERM; kill "${pids[@]}" 2>/dev/null || true; }
+cleanup() { trap - EXIT INT TERM; echo "bridge: tearing down (uuid=$UUID)" >&2; kill "${pids[@]}" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
-# down: new z2 inbox lines -> mm inbox (agent's local Monitor delivers them)
-( command tail -n0 -F "$Z2_INBOX" | ssh "$MM" "cat >> $MM_INBOX" ) &
+# down: new z2 inbox lines -> mm inbox (agent's local Monitor delivers them). Keep -n0
+# so a (future) restart never replays the accumulated PING history.
+( command tail -n0 -F "$Z2_INBOX" | ssh "$MM" "cat >> '$MM_INBOX'" ) &
 pids+=($!)
 
-# up: new mm outbox lines (agent replies) -> z2 reply-target inbox
-( ssh "$MM" "command tail -n0 -F $MM_OUTBOX" >> "$Z2_REPLY" ) &
+# up: new mm outbox lines (agent replies) -> z2 reply-target inbox. Use plain -F (not
+# -n0): the outbox is freshly created empty, and -F's last-lines read closes the race
+# where the agent writes READY before this tail attaches.
+( ssh "$MM" "command tail -F '$MM_OUTBOX'" >> "$Z2_REPLY" ) &
 pids+=($!)
 
 echo "bridge up: down=z2:$Z2_INBOX->mm  up=mm->z2:$Z2_REPLY  (mm=$MM, pids=${pids[*]})" >&2

@@ -13,8 +13,9 @@ BRIDGE_PID=""
 # shellcheck disable=SC1090
 [[ -f "$STATE" ]] && source "$STATE"
 
-# Kill the bridge (setsid made it a process-group leader; kill the whole group).
-if [[ -n "${BRIDGE_PID:-}" ]]; then
+# Kill the bridge (setsid made it a process-group leader; kill the whole group). Verify
+# the PID is actually our bridge first, so a recycled PID is never signaled.
+if [[ -n "${BRIDGE_PID:-}" ]] && ps -p "$BRIDGE_PID" -o args= 2>/dev/null | grep -q brotherly-watch-bridge; then
     kill -TERM -"$BRIDGE_PID" 2>/dev/null || kill -TERM "$BRIDGE_PID" 2>/dev/null || true
 fi
 
