@@ -10,12 +10,13 @@
 # **Skills** - Slash-command workflows for TDD, deep research,
 # session management, debugging, and more.
 #
-# **Blacklisted skills** (19 - Chris-specific or not useful for Matt):
+# **Blacklisted skills** (23 - Chris-specific or not useful for Matt):
 # agent-monitor, agent-teams, bus-arrival-monitor, claude-code-docs,
-# get-feedback, gnome-extension-creator, iterative-compaction,
-# maintenance-queue, move-session, new-convo, priority-synthesis,
-# remember-this, review-sessions, self-awareness, self-improvement,
-# signal-send, signal-voice-message, synthesize, template-skill
+# easy-mode, get-feedback, gnome-extension-creator, iterative-compaction,
+# lean-mode, maintenance-queue, move-session, new-convo,
+# priority-synthesis, remember-this, report-hook-bug, review-sessions,
+# self-awareness, self-improvement, signal-send, signal-voice-message,
+# sync-runtime-config, synthesize, template-skill
 #
 # Also sets group-write permissions on Matt's skills directory so
 # Chris can manage skills remotely.
@@ -33,19 +34,23 @@ BLACKLIST=(
     agent-teams
     bus-arrival-monitor
     claude-code-docs
+    easy-mode
     get-feedback
     gnome-extension-creator
     iterative-compaction
+    lean-mode
     maintenance-queue
     move-session
     new-convo
     priority-synthesis
     remember-this
+    report-hook-bug
     review-sessions
     self-awareness
     self-improvement
     signal-send
     signal-voice-message
+    sync-runtime-config
     synthesize
     template-skill
 )
