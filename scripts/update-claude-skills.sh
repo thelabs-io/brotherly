@@ -66,7 +66,8 @@ chmod -R g+w "$MATT_CLAUDE/agents" 2>/dev/null || true
 
 # Destination top-level dirs are owned by matt (chris writes via group/ACL),
 # so rsync must not try to set perms/owner/times on dirs it doesn't own.
-RSYNC_OPTS=(-rltv --no-perms --no-owner --no-group --omit-dir-times)
+# -L materializes symlinked skills (their targets don't exist on this machine).
+RSYNC_OPTS=(-rLtv --no-perms --no-owner --no-group --omit-dir-times)
 
 echo ""
 echo "Copying agents..."
