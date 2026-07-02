@@ -64,9 +64,13 @@ echo "Fixing permissions on existing files first..."
 chmod -R g+w "$MATT_CLAUDE/skills" 2>/dev/null || true
 chmod -R g+w "$MATT_CLAUDE/agents" 2>/dev/null || true
 
+# Destination top-level dirs are owned by matt (chris writes via group/ACL),
+# so rsync must not try to set perms/owner/times on dirs it doesn't own.
+RSYNC_OPTS=(-rltv --no-perms --no-owner --no-group --omit-dir-times)
+
 echo ""
 echo "Copying agents..."
-rsync -av --exclude '.*' "$CHRIS_CLAUDE/agents/" "$MATT_CLAUDE/agents/"
+rsync "${RSYNC_OPTS[@]}" --exclude '.*' "$CHRIS_CLAUDE/agents/" "$MATT_CLAUDE/agents/"
 
 echo ""
 echo "Copying skills..."
@@ -74,7 +78,7 @@ exclude_args=()
 for skill in "${BLACKLIST[@]}"; do
     exclude_args+=(--exclude "$skill")
 done
-rsync -av --exclude '.*' --exclude '*.zip' --exclude '__pycache__' \
+rsync "${RSYNC_OPTS[@]}" --exclude '.*' --exclude '*.zip' --exclude '__pycache__' \
     "${exclude_args[@]}" \
     "$CHRIS_CLAUDE/skills/" "$MATT_CLAUDE/skills/"
 
@@ -89,8 +93,9 @@ done
 
 echo ""
 echo "Setting group-write permissions on skills directory..."
-chmod -R g+w "$MATT_CLAUDE/skills"
-chmod -R g+w "$MATT_CLAUDE/agents"
+# Some files/dirs are matt-owned and can't be chmod'd from chris - that's fine.
+chmod -R g+w "$MATT_CLAUDE/skills" 2>/dev/null || true
+chmod -R g+w "$MATT_CLAUDE/agents" 2>/dev/null || true
 
 echo ""
 echo "=== Summary ==="
